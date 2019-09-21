@@ -78,6 +78,7 @@ class batch_data_generator:
                                 9:1, 10:5, 11:4, 15:2, 17:2, 19:2, \
                                 12:3, 13:2, 14:2, 16:3, 18:2, \
                                 20:5 }
+        '''
         p = data.describe()
         # 过滤异常数据
         up_limit = p.loc['75%', 'RSRP'] + 1.5 * (p.loc['75%', 'RSRP'] - p.loc['25%', 'RSRP'])
@@ -85,7 +86,7 @@ class batch_data_generator:
         data[u'RSRP'][(data[u'RSRP'] < down_limit)] = np.nan
         data[u'RSRP'][data[u'RSRP'] > up_limit] = np.nan
         data.dropna(axis=0, how='any')
-    
+        '''
         # 删除不需要的列
         del data['Cell Index']
     
@@ -110,8 +111,9 @@ class batch_data_generator:
         del data['Y']
         del data['Altitude']
         del data['Building Height']
-        label = data.pop('RSRP')
-        data.insert(8, 'RSRP', label)
+        if 'RSRP' in list(data):
+            label = data.pop('RSRP')
+            data.insert(8, 'RSRP', label)
         del data['Frequency Band']
         del data['Cell_Height_Difference']
     
