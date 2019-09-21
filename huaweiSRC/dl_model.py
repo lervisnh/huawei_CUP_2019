@@ -57,7 +57,8 @@ class our_model:
                                             kernel_size = this_layer_info['kernel_size'],
                                             strides = this_layer_info['strides'],
                                             padding = 'same',
-                                            name = 'hidden_'+str(hidden_layer)+this_layer_info['layer_type']
+                                            name = 'hidden_'+str(hidden_layer)+'_'+\
+                                                    this_layer_info['layer_type']
                                             )(prev_layer)
                 model_layers.append( this_layer )
         output = layers.Dense(units = self.output_dim, name = 'output_layer')( model_layers[-1] )
@@ -187,7 +188,7 @@ class our_model:
         #input占位符  模型输出
         inputs = tf.placeholder(tf.float32, [None, self.input_dim], name = 'input_layer')
         predictions = self.building(inputs)
-        if 'session' in self.__dir__():
+        if 'session' in dir(): #已经包含了session，即训练过了
             with self.session as sess:
                 prediction = sess.run(predictions, feed_dict={inputs:test_inputs})
         else:
