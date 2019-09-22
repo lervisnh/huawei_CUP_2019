@@ -11,6 +11,8 @@ import math
 
 class batch_data_generator:
     def __init__(self, data_files_path, files_split_rate=.05):
+        codes_path = os.getcwd() #代码存放地址
+        
         try:
             if os.path.exists(data_files_path): #train数据集存放地址
                 os.chdir( data_files_path )
@@ -27,7 +29,6 @@ class batch_data_generator:
         self.files_n_per_generator = int(len(self.files_name)*self.files_split_rate)+1
         
         
-        codes_path = os.getcwd() #代码存放地址
         father_path = os.path.abspath(os.path.join(os.getcwd(), "..")) #上一级目录
         train_set_path = father_path+'/train_set'
         try:
@@ -37,7 +38,7 @@ class batch_data_generator:
         except:
             print('Check train_set directory!')
         self.train_set_path = train_set_path
-        
+        os.chdir( codes_path ) #回到代码存放的地址
 
     def batch_generator(self):
         while self.files_name:#仍有未读取的文件
@@ -73,52 +74,79 @@ class batch_data_generator:
                 yield (np.concatenate(inputs), np.concatenate(labels))
 
     def create_features(self, data):
-        cluter_index_map = {1:0, 2:0, 3:0, \
-                                4:0, 5:0, 6:0, 7:1, 8:1, \
-                                9:1, 10:5, 11:4, 15:2, 17:2, 19:2, \
-                                12:3, 13:2, 14:2, 16:3, 18:2, \
-                                20:5 }
-        '''
-        p = data.describe()
-        # 过滤异常数据
-        up_limit = p.loc['75%', 'RSRP'] + 1.5 * (p.loc['75%', 'RSRP'] - p.loc['25%', 'RSRP'])
-        down_limit = p.loc['25%', 'RSRP'] - 1.5 * (p.loc['75%', 'RSRP'] - p.loc['25%', 'RSRP'])
-        data[u'RSRP'][(data[u'RSRP'] < down_limit)] = np.nan
-        data[u'RSRP'][data[u'RSRP'] > up_limit] = np.nan
-        data.dropna(axis=0, how='any')
-        '''
-        # 删除不需要的列
-        del data['Cell Index']
+        clutter_index_dict = {1:1,2:1,3:1,4:1,5:1,6:1,7:2,8:2,9:2,10:6,11:5,
+                              15:3,17:3,19:3,12:4,13:3,14:3,16:4,18:3,20:6 }
+        def __direction(x,y):
+            if x>=0 and y<0:
+                return 180
+            elif x<0 and y<0:
+                return 180
+            elif x<0 and y>=0:
+                return 360
+            else:
+                return 0
+        
+        def __ConvertX(x):
+            if x<0:
+                return 0
+            else:
+                return x
+        
+        data.pop('Cell Index')
+        data['New Clutter Index'] = data['Clutter Index'].map(lambda x: clutter_index_dict[x])
+        data['New Cell Clutter Index'] = data['Cell Clutter Index'].map(lambda x: clutter_index_dict[x])
+        data.pop('Clutter Index')
+        data.pop('Cell Clutter Index')
     
-        data['Distance'] = ((data['X'] - data['Cell X']) ** 2 + (data['Y'] - data['Cell Y']) ** 2) ** 0.5
-        data['Clutter Index'].map(cluter_index_map)
-        data['Cell Clutter Index'].map(cluter_index_map)
-        data['Delta_hv'] = data['Height'] + data['Cell Altitude'] - data['Building Height'] - data['Altitude'] - data[
-            'Distance'] * ((data['Electrical Downtilt'] + data['Mechanical Downtilt'])).map(
-            lambda x: math.tan(math.radians(x)))
-        data['Cell_Height_Difference'] = data['Cell Building Height'] - data['Height']
-        data['Direction'] = (((data['X'] - data['Cell X']) / (data['Y'] - data['Cell Y'])).map(
-            lambda x: math.atan(x))) * 180 / math.pi / data['Azimuth']
-        del data['Cell X']
-        del data['Cell Y']
-        del data['Height']
-        del data['Azimuth']
-        del data['Electrical Downtilt']
-        del data['Mechanical Downtilt']
-        del data['Cell Altitude']
-        del data['Cell Building Height']
-        del data['X']
-        del data['Y']
-        del data['Altitude']
-        del data['Building Height']
+        data['Distance'] = ((data['X'] - data['Cell X'])**2 + (data['Y'] - data['Cell Y'])**2)**0.5
+        data['Delta_hv'] = data['Height']+data['Cell Altitude']-data['Building Height']-data['Altitude']-data['Distance']*((data['Electrical Downtilt'] + data['Mechanical Downtilt'])).map(lambda x: math.tan(math.radians(x)))
+        #data['Cell_Height_Difference'] = (data['Cell Building Height'] - data['Height']).map(__ConvertX)
+    
+        data['RelativeX'] = data['X'] - data['Cell X']
+        data['RelativeY'] = data['Y'] - data['Cell Y']
+        #data['Direction_temp'] = (((data['X']-data['Cell X'])/(data['Y']-data['Cell Y'])).map(lambda x: math.atan(x)))*180/math.pi
+        data['AddAngle'] = data.apply(lambda x: __direction(x.RelativeX,x.RelativeY),axis=1)
+    
+    
+        data['Direction'] = ((((data['X']-data['Cell X'])/(data['Y']-data['Cell Y'])).map(lambda x: math.atan(x)))*180/math.pi + data['AddAngle'] - data['Azimuth']).map(lambda x: abs(x))
+        data.pop('Cell X')
+        data.pop('Cell Y')
+        #data.pop('Height')
+        data.pop('Azimuth')
+        data.pop('Electrical Downtilt')
+        data.pop('Mechanical Downtilt')
+        data.pop('Cell Altitude')
+        data.pop('Cell Building Height')
+        data.pop('X')
+        data.pop('Y')
+        data.pop('Altitude')
+        data.pop('Building Height')
+        data.pop('Frequency Band')
+    
+        data.pop('RelativeX')
+        data.pop('RelativeY')
+        data.pop('AddAngle')
+        #data.pop('Direction_temp')
+        data.pop('Height')
+        #data.pop('Cell_Height_Difference')
+    
         if 'RSRP' in list(data):
             label = data.pop('RSRP')
-            data.insert(8, 'RSRP', label)
-        del data['Frequency Band']
-        del data['Cell_Height_Difference']
-    
-        #return data
-    
+            data['RS Power'] = data['RS Power'] / 10 ** np.ceil(np.log10(18.2))
+            data['New Clutter Index'] = data['New Clutter Index']/10 ** np.ceil(np.log10(6))
+            data['New Cell Clutter Index'] = data['New Clutter Index'] / 10 ** np.ceil(np.log10(6))
+            data['Distance'] = data['Distance'] / 10 ** np.ceil(np.log10(5003.299))
+            data['Delta_hv'] = data['Delta_hv'] /10**np.ceil(np.log10(471.05))
+            data['Direction'] = data['Direction'] /10**np.ceil(np.log10(360))
+            data.insert(6, 'RSRP', label)
+        else:
+            data['RS Power'] = data['RS Power'] / 10 ** np.ceil(np.log10(18.2))
+            data['New Clutter Index'] = data['New Clutter Index'] / 10 ** np.ceil(np.log10(6))
+            data['New Cell Clutter Index'] = data['New Clutter Index'] / 10 ** np.ceil(np.log10(6))
+            data['Distance'] = data['Distance'] / 10 ** np.ceil(np.log10(5003.299))
+            data['Delta_hv'] = data['Delta_hv'] / 10 ** np.ceil(np.log10(471.05))
+            data['Direction'] = data['Direction'] / 10 ** np.ceil(np.log10(360))
+        
     
     def merging(self):
         files_name = os.listdir(self.data_files_path) #得到文件夹下的所有文件名称
@@ -131,9 +159,11 @@ class batch_data_generator:
                     #这里可以加特征预处理
                     ####################
                     col_names = list(a_file)
-                    inputs.append( a_file[[ _ for _ in col_names[0:-1]  ]] )
                     if 'RSRP' in col_names:
+                        inputs.append( a_file[[ _ for _ in col_names[0:-1]  ]] )
                         labels.append( a_file['RSRP'] )
+                    else:
+                        inputs.append( a_file[[ _ for _ in col_names  ]] )
         if 'RSRP' in col_names:
             return (np.concatenate(inputs), np.concatenate(labels))
         else:
